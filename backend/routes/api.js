@@ -32,3 +32,47 @@ router.post('/product-info', async (req, res) => {
 });
 
 module.exports = router;
+
+
+
+
+const multer = require('multer');
+const { OpenAI } = require('openai');
+
+// Setup OpenAI
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Multer for file uploads
+const upload = multer({ dest: 'uploads/' });
+
+router.post('/analyze-image', upload.single('image'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No image uploaded' });
+  }
+
+  try {
+    const fs = require('fs');
+    const imageBuffer = fs.readFileSync(req.file.path);
+    const base64Image = imageBuffer.toString('base64');
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'What item is shown in this image? Provide as much detail as possible.' },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Image}` } }
+          ]
+        }
+      ],
+      max_tokens: 500
+    });
+
+    const description = response.choices[0].message.content;
+    res.json({ description });
+  } catch (err) {
+    console.error('AI analysis error:', err.message);
+    res.status(500).json({ error: 'Image analysis failed' });
+  }
+});
